@@ -6,7 +6,7 @@ The app focuses on direct company application links. Instead of sending users th
 
 ## What It Does
 
-- Aggregates live jobs from public Greenhouse and Ashby company boards.
+- Aggregates live jobs from public Greenhouse, Ashby, Lever, Workday, Workable, Rippling, Personio, Recruitee, and SmartRecruiters company boards.
 - Filters for Data Scientist, Data Analyst, Machine Learning / AI, Data Engineering, and Business Intelligence roles.
 - Classifies work mode as Remote, Hybrid, On-site / Location-based, or Unspecified.
 - Labels experience level as Internship, New Grad, Entry / Associate, Professional / Unspecified, or Senior / Manager.
@@ -33,7 +33,7 @@ Use `app/streamlit_app.py` as the main file path. No API keys or secrets are req
 ```text
 app/                    Streamlit dashboard
 data/source_registry.json
-docs/                   Project notes and deployment guide
+docs/                   Project notes, global job-board links, and deployment guide
 scripts/                Batch fetch/export scripts
 src/data_science_jobs/  Source adapters, classification, pipeline
 tests/                  Unit tests
@@ -43,3 +43,6 @@ tests/                  Unit tests
 
 This project shows an end-to-end data product: live data ingestion, normalization across multiple APIs, heuristic classification, user-facing filtering, CSV export, tests, and deployment-ready documentation.
 
+## Current Coverage
+
+The source registry currently tracks 100+ company career boards across North America, Europe, Asia, Australia/New Zealand, and Latin America. It prioritizes original company application links over third-party reposts.
