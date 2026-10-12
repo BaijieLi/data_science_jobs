@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,10 +11,12 @@ from typing import Any, Iterable
 import requests
 
 from .classification import strip_html
+from .schema import first_salary_text, format_ashby_compensation, format_recruitee_salary
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REGISTRY_PATH = REPO_ROOT / "data" / "source_registry.json"
+LOGGER = logging.getLogger(__name__)
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": "Mozilla/5.0 (data-science-jobs portfolio project)",
@@ -66,6 +69,7 @@ def search_terms(source: dict[str, str]) -> tuple[str, ...]:
 def normalize_greenhouse(job: dict[str, Any], source: dict[str, str]) -> dict[str, Any]:
     departments = job.get("departments") or []
     department = ", ".join(d.get("name", "") for d in departments if d.get("name"))
+    description = strip_html(job.get("content"))
     return {
         "job_id": str(job.get("id") or job.get("internal_job_id") or ""),
         "company": job.get("company_name") or source["company"],
@@ -77,7 +81,8 @@ def normalize_greenhouse(job: dict[str, Any], source: dict[str, str]) -> dict[st
         "application_url": job.get("absolute_url") or "",
         "published_at": job.get("first_published") or "",
         "updated_at": job.get("updated_at") or "",
-        "description": strip_html(job.get("content")),
+        "salary": first_salary_text(description),
+        "description": description,
         "raw_workplace": "",
         "provider": "greenhouse",
         "source_focus": source.get("focus", ""),
@@ -106,6 +111,7 @@ def normalize_lever(job: dict[str, Any], source: dict[str, str]) -> dict[str, An
         "application_url": job.get("applyUrl") or job.get("hostedUrl") or "",
         "published_at": "",
         "updated_at": str(job.get("createdAt") or ""),
+        "salary": first_salary_text(description),
         "description": description,
         "raw_workplace": job.get("workplaceType") or "",
         "provider": "lever",
@@ -117,6 +123,7 @@ def normalize_ashby(job: dict[str, Any], source: dict[str, str]) -> dict[str, An
     secondary = job.get("secondaryLocations") or []
     extra_locations = [loc.get("location", "") for loc in secondary if isinstance(loc, dict)]
     locations = [job.get("location") or ""] + [loc for loc in extra_locations if loc]
+    description = job.get("descriptionPlain") or strip_html(job.get("descriptionHtml"))
     return {
         "job_id": str(job.get("id") or ""),
         "company": source["company"],
@@ -128,7 +135,8 @@ def normalize_ashby(job: dict[str, Any], source: dict[str, str]) -> dict[str, An
         "application_url": job.get("applyUrl") or job.get("jobUrl") or "",
         "published_at": job.get("publishedAt") or "",
         "updated_at": "",
-        "description": job.get("descriptionPlain") or strip_html(job.get("descriptionHtml")),
+        "salary": format_ashby_compensation(job.get("compensation")) or first_salary_text(description),
+        "description": description,
         "raw_workplace": job.get("workplaceType") or "",
         "provider": "ashby",
         "source_focus": source.get("focus", ""),
@@ -151,6 +159,7 @@ def normalize_workday(job: dict[str, Any], source: dict[str, str]) -> dict[str, 
         "application_url": posting_url,
         "published_at": job.get("postedOn") or "",
         "updated_at": "",
+        "salary": "",
         "description": "",
         "raw_workplace": "",
         "provider": "workday",
@@ -166,6 +175,7 @@ def normalize_workable(job: dict[str, Any], source: dict[str, str]) -> dict[str,
         if isinstance(loc, dict)
     )
     location = location or ", ".join(part for part in (job.get("city"), job.get("state"), job.get("country")) if part)
+    description = strip_html(job.get("description"))
     return {
         "job_id": str(job.get("shortcode") or job.get("code") or ""),
         "company": source["company"],
@@ -177,7 +187,8 @@ def normalize_workable(job: dict[str, Any], source: dict[str, str]) -> dict[str,
         "application_url": job.get("application_url") or job.get("url") or "",
         "published_at": job.get("published_on") or job.get("created_at") or "",
         "updated_at": "",
-        "description": strip_html(job.get("description")),
+        "salary": first_salary_text(description),
+        "description": description,
         "raw_workplace": "Remote" if job.get("telecommuting") else "",
         "provider": "workable",
         "source_focus": source.get("focus", ""),
@@ -186,6 +197,7 @@ def normalize_workable(job: dict[str, Any], source: dict[str, str]) -> dict[str,
 
 
 def normalize_recruitee(job: dict[str, Any], source: dict[str, str]) -> dict[str, Any]:
+    description = strip_html(job.get("description") or job.get("sharing_description"))
     return {
         "job_id": str(job.get("id") or job.get("guid") or ""),
         "company": job.get("company_name") or source["company"],
@@ -197,7 +209,8 @@ def normalize_recruitee(job: dict[str, Any], source: dict[str, str]) -> dict[str
         "application_url": job.get("careers_apply_url") or job.get("careers_url") or "",
         "published_at": job.get("published_at") or job.get("created_at") or "",
         "updated_at": job.get("updated_at") or "",
-        "description": strip_html(job.get("description") or job.get("sharing_description")),
+        "salary": format_recruitee_salary(job.get("salary")) or first_salary_text(description),
+        "description": description,
         "raw_workplace": "Remote" if job.get("remote") else ("Hybrid" if job.get("hybrid") else ""),
         "provider": "recruitee",
         "source_focus": source.get("focus", ""),
@@ -235,6 +248,7 @@ def normalize_personio(position: ET.Element, source: dict[str, str]) -> dict[str
         "application_url": posting_url,
         "published_at": "",
         "updated_at": "",
+        "salary": first_salary_text(" ".join(descriptions)),
         "description": strip_html(" ".join(descriptions)),
         "raw_workplace": "",
         "provider": "personio",
@@ -256,6 +270,7 @@ def normalize_rippling(job: dict[str, Any], source: dict[str, str]) -> dict[str,
         "application_url": job.get("url") or "",
         "published_at": "",
         "updated_at": "",
+        "salary": "",
         "description": "",
         "raw_workplace": work_location.get("label") or "",
         "provider": "rippling",
@@ -291,6 +306,7 @@ def normalize_smartrecruiters(job: dict[str, Any], source: dict[str, str]) -> di
         "application_url": posting_url,
         "published_at": job.get("releasedDate") or "",
         "updated_at": "",
+        "salary": "",
         "description": experience.get("label") or "",
         "raw_workplace": "Remote" if location.get("remote") else ("Hybrid" if location.get("hybrid") else ""),
         "provider": "smartrecruiters",
@@ -376,6 +392,7 @@ def fetch_source(source: dict[str, str], timeout: int = 20) -> tuple[list[dict[s
         payload = fetch_json(source, timeout=timeout)
         return normalize_jobs(payload, source), None
     except Exception as exc:  # keep the live app useful even if one company rate-limits.
+        LOGGER.warning("failed to fetch source %s: %s", source.get("company"), exc)
         return [], f"{source['company']}: {exc}"
 
 

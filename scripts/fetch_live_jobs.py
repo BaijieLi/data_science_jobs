@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -17,18 +18,24 @@ JSON_PATH = OUTPUT_DIR / "data_science_jobs.json"
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     rows, errors = build_job_board()
     OUTPUT_DIR.mkdir(exist_ok=True)
     fieldnames = [
         "company",
         "title",
         "location",
+        "salary",
         "work_mode",
         "experience",
+        "visa",
         "job_family",
         "domain",
         "department",
         "employment_type",
+        "apply_url",
+        "source",
+        "posted_date",
         "application_url",
         "posting_url",
         "provider",
@@ -50,4 +57,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
